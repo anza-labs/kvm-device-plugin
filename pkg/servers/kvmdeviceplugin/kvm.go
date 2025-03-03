@@ -12,17 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package deviceplugin
+package kvmdeviceplugin
 
 import (
 	"context"
 
+	"github.com/anza-labs/kvm-device-plugin/pkg/plugin"
+
 	"k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
-type Server struct{}
+type Server struct {
+	name   string
+	socket string
+}
 
 var _ v1beta1.DevicePluginServer = (*Server)(nil)
+
+func New(name, socket string) *Server {
+	return &Server{
+		name:   name,
+		socket: socket,
+	}
+}
+
+func (s *Server) Register(ctx context.Context) error {
+	// TODO: wait for Server to be running
+
+	return plugin.RegisterDevicePlugin(ctx, s.name, s.socket)
+}
 
 // Manager.
 func (s *Server) GetDevicePluginOptions(
