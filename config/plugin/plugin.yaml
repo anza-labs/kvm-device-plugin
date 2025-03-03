@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/name: kvm-device-plugin-system
+    app.kubernetes.io/managed-by: kustomize
+  name: system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: plugin
+  namespace: system
+  labels:
+    app.kubernetes.io/name: kvm-device-plugin-system
+    app.kubernetes.io/managed-by: kustomize
+spec:
