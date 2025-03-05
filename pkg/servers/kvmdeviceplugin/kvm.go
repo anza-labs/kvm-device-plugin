@@ -27,6 +27,7 @@ import (
 const (
 	kvmPath = "/dev/kvm"
 	kvmName = "kvm"
+	rwPerm  = "rw"
 )
 
 type Server struct {
@@ -123,9 +124,9 @@ func (s *Server) Allocate(
 
 	devices := []*v1beta1.DeviceSpec{
 		{
-			ContainerPath: "/dev/kvm",
-			HostPath:      "/dev/kvm",
-			Permissions:   "rw",
+			ContainerPath: kvmPath,
+			HostPath:      kvmPath,
+			Permissions:   rwPerm,
 		},
 	}
 
