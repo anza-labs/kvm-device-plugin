@@ -16,45 +16,64 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/anza-labs/kvm-device-plugin/pkg/metrics"
 	"github.com/anza-labs/kvm-device-plugin/pkg/plugin"
 	"github.com/anza-labs/kvm-device-plugin/pkg/servers/kvmdeviceplugin"
 )
 
 const (
-	pluginName = "virt.io/kvm"
+	pluginNamespace = "device.anza-labs.com"
+	gracePeriod     = 5 * time.Second
+)
 
-	gracePeriod = 5 * time.Second
+var (
+	logLevel string
 )
 
 func main() {
-	// TODO: any logger settup must be done here, before first log call.
-	log := slog.Default()
+	flag.StringVar(&logLevel, "log-level", "info", "Set log level (debug, info, warn, error)")
+	flag.Parse()
 
-	if err := run(context.Background(), log, mainOptions{
-		pluginEndpoint: "unix:///tmp/test.sock",
-	}); err != nil {
-		slog.Error("Critical failure", "error", err)
+	var level slog.Level
+	switch logLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo // Default to info if unknown
+	}
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+
+	if err := run(context.Background(), log); err != nil {
+		log.Error("Critical failure", "error", err)
 		os.Exit(1)
 	}
 }
 
-type mainOptions struct {
-	pluginEndpoint string
-}
-
-func run(ctx context.Context, log *slog.Logger, opts mainOptions) error {
+func run(ctx context.Context, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(ctx,
 		os.Interrupt,
 		syscall.SIGINT,
@@ -62,36 +81,62 @@ func run(ctx context.Context, log *slog.Logger, opts mainOptions) error {
 	)
 	defer stop()
 
-	log.InfoContext(ctx, "Starting plugin")
+	log.Info("Starting plugin")
 	eg, ctx := errgroup.WithContext(ctx)
-	kvm := kvmdeviceplugin.New(pluginName, opts.pluginEndpoint)
-	server := plugin.DevicePluginServer(kvm)
+
+	kvm := kvmdeviceplugin.New(pluginNamespace, log)
+	dps := plugin.New(log)
+
+	grpcServer := dps.DevicePluginServer(kvm)
+	httpServer := metricsServer()
+
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
 
 	eg.Go(func() error {
-		return shutdown(ctx, server)
+		log.Info("Starting shutdown controller")
+		return shutdown(ctx, log, grpcServer, httpServer)
 	})
 	eg.Go(func() error {
-		return plugin.RegisterDevicePlugin(ctx, pluginName, opts.pluginEndpoint)
+		log.Info("Registering device plugin")
+		return dps.RegisterDevicePlugin(ctx, kvm.Name(), kvm.Socket())
 	})
 	eg.Go(func() error {
-		lis, cleanup, err := listener(ctx, opts.pluginEndpoint)
+		lis, cleanup, err := listener(ctx, log, "tcp://0.0.0.0:8080")
 		if err != nil {
-			return fmt.Errorf("failed to create listener: %w", err)
+			return fmt.Errorf("failed to create http listener: %w", err)
 		}
 		defer cleanup()
-		return server.Serve(lis)
+
+		log.Info("Starting HTTP server")
+		return httpServer.Serve(lis)
+	})
+	eg.Go(func() error {
+		lis, cleanup, err := listener(ctx, log, kvm.Socket())
+		if err != nil {
+			return fmt.Errorf("failed to create grpc listener: %w", err)
+		}
+		defer cleanup()
+
+		// Mark server as healthy
+		healthServer.SetServingStatus(kvm.Name(), grpc_health_v1.HealthCheckResponse_SERVING)
+
+		log.Info("Starting gRPC server")
+		return grpcServer.Serve(lis)
 	})
 
+	log.Info("Plugin is running")
 	return eg.Wait()
 }
 
 func listener(
 	ctx context.Context,
+	log *slog.Logger,
 	pluginEndpoint string,
 ) (net.Listener, func(), error) {
 	endpointURL, err := url.Parse(pluginEndpoint)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse COSI endpoint: %w", err)
+		return nil, nil, fmt.Errorf("unable to parse plugin endpoint: %w", err)
 	}
 
 	listenConfig := net.ListenConfig{}
@@ -108,12 +153,14 @@ func listener(
 
 	cleanup := func() {
 		if err := listener.Close(); err != nil {
-			slog.Error("Failed to close listener", "error", err)
+			if !errors.Is(err, net.ErrClosed) {
+				log.Error("Failed to close listener", "error", err)
+			}
 		}
 
 		if endpointURL.Scheme == "unix" {
 			if err := os.Remove(endpointURL.Path); err != nil {
-				slog.Error("Failed to remove old socket", "error", err)
+				log.Error("Failed to remove old socket", "error", err)
 			}
 		}
 	}
@@ -121,28 +168,68 @@ func listener(
 	return listener, cleanup, nil
 }
 
-func shutdown(ctx context.Context, server *grpc.Server) error {
+func metricsServer() *http.Server {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{}))
+	return &http.Server{Handler: mux}
+}
+
+func shutdown(
+	ctx context.Context,
+	log *slog.Logger,
+	grpcServer *grpc.Server,
+	httpServer *http.Server,
+) error {
 	<-ctx.Done()
-	slog.Info("Shutting down")
+	log.Info("Shutting down")
 	dctx, stop := context.WithTimeout(context.Background(), gracePeriod)
 	defer stop()
 
-	c := make(chan struct{})
-	if server != nil {
-		go func() {
-			server.GracefulStop()
-			c <- struct{}{}
-		}()
-		for {
-			select {
-			case <-dctx.Done():
-				slog.Info("Forcing shutdown")
-				server.Stop()
-				return nil
-			case <-c:
-				return nil
+	eg, dctx := errgroup.WithContext(dctx)
+
+	if grpcServer != nil {
+		eg.Go(func() error {
+			log.Debug("Shutting down gRPC server")
+
+			c := make(chan struct{})
+			go func() {
+				grpcServer.GracefulStop()
+				c <- struct{}{}
+			}()
+
+			for {
+				select {
+				case <-dctx.Done():
+					log.Info("Forcing gRPC shutdown")
+					grpcServer.Stop()
+					return nil
+				case <-c:
+					return nil
+				}
 			}
-		}
+		})
 	}
-	return nil
+
+	if httpServer != nil {
+		eg.Go(func() error {
+			log.Debug("Shutting down HTTP server")
+
+			c := make(chan error)
+			go func() {
+				c <- httpServer.Shutdown(dctx)
+			}()
+
+			for {
+				select {
+				case <-dctx.Done():
+					log.Info("Forcing HTTP shutdown")
+					return httpServer.Close()
+				case err := <-c:
+					return err
+				}
+			}
+		})
+	}
+
+	return eg.Wait()
 }

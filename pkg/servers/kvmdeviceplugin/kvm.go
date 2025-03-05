@@ -16,33 +16,64 @@ package kvmdeviceplugin
 
 import (
 	"context"
-
-	"github.com/anza-labs/kvm-device-plugin/pkg/plugin"
+	"fmt"
+	"log/slog"
+	"os"
+	"path"
 
 	"k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
+const (
+	kvmPath = "/dev/kvm"
+	kvmName = "kvm"
+)
+
 type Server struct {
-	name   string
-	socket string
+	log       *slog.Logger
+	namespace string
+	update    chan struct{}
+	counter   int
+	devs      []*v1beta1.Device
 }
 
 var _ v1beta1.DevicePluginServer = (*Server)(nil)
 
-func New(name, socket string) *Server {
-	return &Server{
-		name:   name,
-		socket: socket,
+func New(namespace string, log *slog.Logger) *Server {
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
+	s := &Server{
+		log:       log,
+		namespace: namespace,
+		counter:   0,
+		update:    make(chan struct{}),
+		devs:      []*v1beta1.Device{},
+	}
+	s.discover()
+	return s
+}
+
+func (s *Server) discover() {
+	if _, err := os.Stat(kvmPath); err == nil {
+		s.log.Debug("Discovered KVM device")
+		s.devs = append(s.devs, &v1beta1.Device{
+			ID:     fmt.Sprintf("%s%d", kvmName, s.counter),
+			Health: v1beta1.Healthy,
+		})
+	} else {
+		s.log.Error("No KVM device found")
 	}
 }
 
-func (s *Server) Register(ctx context.Context) error {
-	// TODO: wait for Server to be running
-
-	return plugin.RegisterDevicePlugin(ctx, s.name, s.socket)
+func (s *Server) Name() string {
+	return path.Join(s.namespace, kvmName)
 }
 
-// Manager.
+func (s *Server) Socket() string {
+	return fmt.Sprintf("unix://%s", path.Join(v1beta1.DevicePluginPath, kvmName+".sock"))
+}
+
 func (s *Server) GetDevicePluginOptions(
 	ctx context.Context,
 	_ *v1beta1.Empty,
@@ -53,38 +84,66 @@ func (s *Server) GetDevicePluginOptions(
 	}, nil
 }
 
-// returns the new list.
 func (s *Server) ListAndWatch(
 	_ *v1beta1.Empty,
 	lws v1beta1.DevicePlugin_ListAndWatchServer,
 ) error {
-	panic("unimplemented")
+	if err := lws.Send(&v1beta1.ListAndWatchResponse{Devices: s.devs}); err != nil {
+		s.log.Error("Failed to send ListAndWatch response", "error", err)
+	}
+
+	for range s.update {
+		if err := lws.Send(&v1beta1.ListAndWatchResponse{Devices: s.devs}); err != nil {
+			s.log.Error("Failed to send ListAndWatch response", "error", err)
+		}
+	}
+
+	panic("unexpected error")
 }
 
-// GetPreferredAllocation returns a preferred set of devices to allocate
-// from a list of available ones. The resulting preferred allocation is not
-// guaranteed to be the allocation ultimately performed by the
-// devicemanager. It is only designed to help the devicemanager make a more
-// informed allocation decision when possible.
-func (s *Server) GetPreferredAllocation(
-	ctx context.Context,
-	req *v1beta1.PreferredAllocationRequest,
-) (*v1beta1.PreferredAllocationResponse, error) {
-	panic("unimplemented")
-}
-
-// of the steps to make the Device available in the container.
 func (s *Server) Allocate(
 	ctx context.Context,
 	req *v1beta1.AllocateRequest,
 ) (*v1beta1.AllocateResponse, error) {
-	panic("unimplemented")
+	// TODO: call Inc on the allocation collector
+	// prometheus.NewCounter(prometheus.CounterOpts{
+	// 	Name: "devices_allocated_total", // FIXME: set proper name
+	// 	Help: "Total count of allocate calls.",
+	// 	ConstLabels: prometheus.Labels{
+	// 		"device": kvmPath,
+	// 	},
+	// })
+
+	s.devs = append(s.devs, &v1beta1.Device{
+		ID:     fmt.Sprintf("%s%d", kvmName, s.counter),
+		Health: v1beta1.Healthy,
+	})
+	s.counter += 1
+	s.update <- struct{}{}
+
+	devices := []*v1beta1.DeviceSpec{
+		{
+			ContainerPath: "/dev/kvm",
+			HostPath:      "/dev/kvm",
+			Permissions:   "rw",
+		},
+	}
+
+	return &v1beta1.AllocateResponse{
+		ContainerResponses: []*v1beta1.ContainerAllocateResponse{{Devices: devices}},
+	}, nil
 }
 
-// such as resetting the device before making devices available to the container.
+func (s *Server) GetPreferredAllocation(
+	ctx context.Context,
+	req *v1beta1.PreferredAllocationRequest,
+) (*v1beta1.PreferredAllocationResponse, error) {
+	return &v1beta1.PreferredAllocationResponse{}, nil
+}
+
 func (s *Server) PreStartContainer(
 	ctx context.Context,
 	req *v1beta1.PreStartContainerRequest,
 ) (*v1beta1.PreStartContainerResponse, error) {
-	panic("unimplemented")
+	return &v1beta1.PreStartContainerResponse{}, nil
 }
