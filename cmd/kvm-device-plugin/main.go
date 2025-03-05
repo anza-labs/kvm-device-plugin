@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	pluginNamespace = "devices.anza-labs.com"
+	pluginNamespace = "devices.anza-labs.dev"
 	gracePeriod     = 5 * time.Second
 )
 
