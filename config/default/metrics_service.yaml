@@ -13,4 +13,4 @@ spec:
       protocol: TCP
       targetPort: metrics
   selector:
-    app.kubernetes.io/name: kvm-device-plugin
+    app: kvm-device-plugin
