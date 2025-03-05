@@ -88,10 +88,6 @@ add-licenses: addlicense ## Run addlicense to append license headers to files mi
 diff: ## Run git diff-index to check if any changes are made.
 	git --no-pager diff HEAD --
 
-.PHONY: publish
-publish: ## Runs the script that publishes the latest documentation.
-	go run ./hack/cmd/publish -version $(VERSION)
-
 .PHONY: release
 release: ## Runs the script that generates new release.
 	go run ./hack/cmd/release -version $(VERSION)
