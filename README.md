@@ -49,15 +49,15 @@ spec:
       command: ["sh", "-c", "[ -e /dev/kvm ]"]
       resources:
         requests:
-          devices.anza-labs.com/kvm: '1' # Request KVM device
+          devices.anza-labs.dev/kvm: '1' # Request KVM device
         limits:
-          devices.anza-labs.com/kvm: '1' # Limit KVM device
+          devices.anza-labs.dev/kvm: '1' # Limit KVM device
 ```
 
 ## How It Works
 
 1. The `kvm-device-plugin` registers with the kubelet and advertises available KVM devices.
-2. When a pod requests the `devices.anza-labs.com/kvm` resource, the device plugin assigns a `/dev/kvm` device to the container.
+2. When a pod requests the `devices.anza-labs.dev/kvm` resource, the device plugin assigns a `/dev/kvm` device to the container.
 3. The container is granted access to `/dev/kvm` for virtualization tasks.
 
 ## Compatibility
