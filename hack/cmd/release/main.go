@@ -89,8 +89,8 @@ func parseVersion(version string) (string, error) {
 
 func createKustomization(resources []string, imageName, newImageName, newTag string) map[string]interface{} {
 	return map[string]interface{}{
-		"namespace":  "image-builder-system",
-		"namePrefix": "image-builder-",
+		"namespace":  "anza-labs-kubelet-plugins",
+		"namePrefix": "kvm-device-",
 		"resources":  resources,
 		"images": []map[string]string{
 			{

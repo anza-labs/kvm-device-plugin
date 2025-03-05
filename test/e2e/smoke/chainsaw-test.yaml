@@ -13,7 +13,7 @@ spec:
           kind: DaemonSet
           metadata:
             name: kvm-device-plugin
-            namespace: kvm-device-plugin-system
+            namespace: anza-labs-kubelet-plugins
           status:
             numberAvailable: 1
   - name: assess the device
