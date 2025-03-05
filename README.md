@@ -28,8 +28,8 @@
 To deploy the `kvm-device-plugin`, apply the provided manifests:
 
 ```sh
-LATEST="$(curl -s 'https://api.github.com/repos/anza-labs/kink/releases/latest' | jq -r '.tag_name')"
-kubectl apply -k "https://github.com/anza-labs/kink/?ref=${LATEST}"
+LATEST="$(curl -s 'https://api.github.com/repos/anza-labs/kvm-device-plugin/releases/latest' | jq -r '.tag_name')"
+kubectl apply -k "https://github.com/anza-labs/kvm-device-plugin/?ref=${LATEST}"
 ```
 
 ## Usage
