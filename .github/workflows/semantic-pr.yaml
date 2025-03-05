@@ -20,7 +20,7 @@ jobs:
           subjectPattern: ^(?![A-Z]).+$
           scopes: |
             deps
-            operator
+            plugin
             example
             image
             kustomize

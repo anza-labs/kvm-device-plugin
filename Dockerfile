@@ -1,4 +1,5 @@
 # Easy crosscomple toolkit
+FROM ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.37 AS probe
 FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.6.1 AS xx
 
 # Build the plugin binary
@@ -27,9 +28,10 @@ RUN xx-go build -trimpath -a -o kvm-device-plugin cmd/kvm-device-plugin/main.go 
 
 # Use distroless as minimal base image to package the plugin binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+# hadolint ignore=DL3007
+FROM gcr.io/distroless/static:latest
 WORKDIR /
 COPY --from=builder /workspace/kvm-device-plugin .
-USER 65532:65532
+COPY --from=probe /ko-app/grpc-health-probe /grpc_health_probe
 
 ENTRYPOINT ["/kvm-device-plugin"]

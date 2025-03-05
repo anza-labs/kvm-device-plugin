@@ -23,9 +23,6 @@ CONTAINER_TOOL ?= docker
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-.PHONY: all
-all: manifests generate api-docs
-
 .PHONY: clean
 clean:
 	-rm -r bin/
@@ -50,7 +47,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: test
-test: manifests generate ## Run tests.
+test: ## Run tests.
 	go test -coverprofile cover.out ./...
 
 .PHONY: test-e2e
@@ -122,7 +119,7 @@ docker-push-controller: ## Push docker image with the controller.
 	$(CONTAINER_TOOL) push $(REPOSITORY)/kvm-device-plugin:$(TAG)
 
 .PHONY: build-installer
-build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
+build-installer: kustomize ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p dist
 	cd config/plugin && $(KUSTOMIZE) edit set image plugin=$(REPOSITORY)/kvm-device-plugin:$(TAG)
 	$(KUSTOMIZE) build config/default > dist/install.yaml
@@ -134,7 +131,7 @@ ifndef ignore-not-found
 endif
 
 .PHONY: cluster
-cluster: kind ctlptl clusterctl kustomize
+cluster: kind ctlptl kustomize
 	@PATH=${LOCALBIN}:$(PATH) $(CTLPTL) apply -f hack/kind.yaml
 
 .PHONY: cluster-reset
@@ -142,8 +139,8 @@ cluster-reset: kind ctlptl
 	@PATH=${LOCALBIN}:$(PATH) $(CTLPTL) delete -f hack/kind.yaml
 
 .PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/plugin && $(KUSTOMIZE) edit set image controller=$(REPOSITORY)/image-builder-controller:$(TAG)
+deploy: kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/plugin && $(KUSTOMIZE) edit set image plugin=$(REPOSITORY)/kvm-device-plugin:$(TAG)
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 
 .PHONY: undeploy
