@@ -1,10 +1,9 @@
 images:
 - name: plugin
   newName: ghcr.io/anza-labs/kvm-device-plugin
-  newTag: v0.1.0
+  newTag: v0.1.1
 namePrefix: kvm-device-
 namespace: anza-labs-kubelet-plugins
 resources:
-- ./config/crd
-- ./config/manager
+- ./config/plugin
 - ./config/rbac
