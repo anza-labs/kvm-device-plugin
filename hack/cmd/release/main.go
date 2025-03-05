@@ -137,7 +137,7 @@ func main() {
 
 	flag.Parse()
 
-	resources := []string{"./config/crd", "./config/manager", "./config/rbac"}
+	resources := []string{"./config/plugin", "./config/rbac"}
 
 	version, err := parseVersion(*versionFlag)
 	if err != nil {
