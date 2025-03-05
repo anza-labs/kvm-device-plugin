@@ -34,9 +34,9 @@ spec:
                     command: ["sh", "-c", "[ -e /dev/kvm ]"]
                     resources:
                       requests:
-                        device.anza-labs.com/kvm: '1'
+                        devices.anza-labs.com/kvm: '1'
                       limits:
-                        device.anza-labs.com/kvm: '1'
+                        devices.anza-labs.com/kvm: '1'
     - assert:
         timeout: 10m
         resource:
