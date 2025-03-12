@@ -9,7 +9,7 @@ require (
 	github.com/prometheus/client_golang v1.21.1
 	golang.org/x/sync v0.12.0
 	google.golang.org/grpc v1.71.0
-	k8s.io/kubelet v0.32.2
+	k8s.io/kubelet v0.32.3
 	sigs.k8s.io/yaml v1.4.0
 )
 
