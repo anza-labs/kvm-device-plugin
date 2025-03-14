@@ -5,11 +5,11 @@ go 1.24.0
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.0
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1
 	github.com/prometheus/client_golang v1.21.1
-	golang.org/x/sync v0.11.0
+	golang.org/x/sync v0.12.0
 	google.golang.org/grpc v1.71.0
-	k8s.io/kubelet v0.32.2
+	k8s.io/kubelet v0.32.3
 	sigs.k8s.io/yaml v1.4.0
 )
 

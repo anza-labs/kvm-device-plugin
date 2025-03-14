@@ -106,15 +106,6 @@ func (s *Server) Allocate(
 	ctx context.Context,
 	req *v1beta1.AllocateRequest,
 ) (*v1beta1.AllocateResponse, error) {
-	// TODO: call Inc on the allocation collector
-	// prometheus.NewCounter(prometheus.CounterOpts{
-	// 	Name: "devices_allocated_total", // FIXME: set proper name
-	// 	Help: "Total count of allocate calls.",
-	// 	ConstLabels: prometheus.Labels{
-	// 		"device": kvmPath,
-	// 	},
-	// })
-
 	s.devs = append(s.devs, &v1beta1.Device{
 		ID:     fmt.Sprintf("%s%d", kvmName, s.counter),
 		Health: v1beta1.Healthy,
