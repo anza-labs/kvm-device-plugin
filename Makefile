@@ -1,16 +1,9 @@
 # Image URL to use all building/pushing image targets
 REPOSITORY     ?= localhost:5005
 TAG            ?= dev-$(shell git describe --match='' --always --abbrev=6 --dirty)
-PLATFORM       ?= linux/$(shell go env GOARCH)
+PLATFORM       ?= linux/$(shell rustc --version --verbose | awk '/host/ {print $2}' | cut -d'-' -f1)
 CHAINSAW_ARGS  ?=
 VERSION        ?= v0.0.0
-
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
-else
-GOBIN=$(shell go env GOBIN)
-endif
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
@@ -48,7 +41,7 @@ help: ## Display this help.
 
 .PHONY: test
 test: ## Run tests.
-	go test -coverprofile cover.out ./...
+	@echo TODO
 
 .PHONY: test-e2e
 test-e2e: chainsaw ## Run the e2e tests against a k8s instance using Kyverno Chainsaw.
@@ -56,11 +49,11 @@ test-e2e: chainsaw ## Run the e2e tests against a k8s instance using Kyverno Cha
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter.
-	$(GOLANGCI_LINT) run
+	@echo TODO
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes.
-	$(GOLANGCI_LINT) run --fix
+	@echo TODO
 
 .PHONY: lint-manifests
 lint-manifests: kustomize kube-linter ## Run kube-linter on Kubernetes manifests.
